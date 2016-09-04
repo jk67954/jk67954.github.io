@@ -40,23 +40,29 @@
   <article class="post">
     <header class="post-header">
       <span class="post-meta">
-      <time datetime="2016-09-04T11:09:57.000Z" itemprop="datePublished">
+      <time datetime="2016-09-04T13:06:12.000Z" itemprop="datePublished">
           2016-09-04
       </time>
     
 </span>
-      <h2 class="post-title"><a href="/2016/09/04/hello-world/">Hello World</a></h2>
+      <h2 class="post-title"><a href="/2016/09/04/WebRTC-建立过程/">WebRTC 建立过程</a></h2>
     </header>
     <section class="post-excerpt">
       <p>
       
-        Welcome to Hexo! This is your very first post. Check documentation for more info. If you get any problems when using Hexo, you can find the answer in troubleshooting or you can ask me on GitHub.
-Quick StartCreate a new p
+        WebRTC建立过程
+####建立过程:
+1. 确定offer和answer方。
+2. ClientO ClientA建立与Signal server的socket连接。
+3. 与stun和turn通信使能NAT/Firewall Traversal。(*局域网内无stun turn也可通信*)
+4. ClientO创建PeerConnection Instance
+5. ClientO Add Stream并创建Offer实例 
+6.
       
       </p>
       
       <p>
-          <a href="/2016/09/04/hello-world/" class="excerpt-link">Read More...</a>
+          <a href="/2016/09/04/WebRTC-建立过程/" class="excerpt-link">Read More...</a>
       </p>
       
     </section>

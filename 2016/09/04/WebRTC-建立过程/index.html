@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html" charset="UTF-8" >
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <title>WebRTC 建立过程 | Hexo</title>
+  <meta name="description" content="" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="MobileOptimized" content="320" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" type="text/css" href="/css/screen.css" />
+  <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Noto+Serif:400,700,400italic|Open+Sans:700,400" />
+
+  <meta name="generator" content="Hexo">
+
+  
+  
+  
+
+  
+</head>
+
+
+<body class="post-template">
+
+  <header class="site-head"  style="background-image: url(//blog.ghost.org/content/images/2013/Nov/cover.png)" >
+    <div class="vertical">
+        <div class="site-head-content inner">
+             <a class="blog-logo" href="/"><img src="//blog.ghost.org/content/images/2013/Nov/bloglogo_1-1.png" alt="Blog Logo"/></a> 
+            <h1 class="blog-title">Hexo</h1>
+            <h2 class="blog-description"></h2>
+        </div>
+    </div>
+</header>
+  
+
+<main class="content" role="main">
+  <article class="post">
+    <span class="post-meta">
+      <time datetime="2016-09-04T13:06:12.000Z" itemprop="datePublished">
+          2016-09-04
+      </time>
+    
+</span>
+    <h1 class="post-title">WebRTC 建立过程</h1>
+    <section class="post-content">
+      <p></p><h1 align="center">WebRTC建立过程</h1><br><img src="http://images.cnitblog.com/blog2015/57211/201503/250050215053233.png" alt="image"><p></p>
+<p>####建立过程:</p>
+<pre><code>1. 确定offer和answer方。
+2. ClientO ClientA建立与Signal server的socket连接。
+3. 与stun和turn通信使能NAT/Firewall Traversal。(*局域网内无stun turn也可通信*)
+4. ClientO创建PeerConnection Instance
+5. ClientO Add Stream并创建Offer实例 
+6. ClientO发送SDP到Signel server
+7. Signal Sever中转给ClinetA，实现SDP交换
+8. ClientA重复6.7
+9. ClientO向stun server请求公网地址并返回Candidate
+10.ClientO拿到ICE_Candidate后通过Signal Server发送给ClientA（ClientA保存对方的ICE_Candidate）
+11.ClientA重复9.10
+12. 双方建立音视频流传输通道,可以向对方发送MediaStream
+</code></pre><p><img src="http://images.cnitblog.com/blog2015/57211/201503/270004369279821.png" alt="image"> </p>
+<p>####模块详述:<br><strong>PeerConnectionFactory</strong> </p>
+<pre><code>+signaling_thread(): 
+</code></pre><blockquote>
+<p>All callbacks will be made on the signaling thread. The application should return the             callback as quickly as possible to avoid blocking the signaling thread. Resource-intensive processes should be posted to a different thread.</p>
+</blockquote>
+<p><strong>&gt;&gt;&gt;&gt;所有的回调函数都是由signaling thread来处理的.程式应尽快尽快处理callback函数避免阻塞signaling thread.资源管理的处理应交由另一个线程处理,指的就是worker_thread.<a href="https://webrtc.org/native-code/native-apis/" target="_blank" rel="external">WebRTC Doc</a> </strong></p>
+<pre><code>+worker_thread()
+</code></pre><blockquote>
+<p>The worker thread is used to handle more resource-intensive processes, such as data streaming.</p>
+</blockquote>
+<p><strong>&gt;&gt;&gt;&gt;worker thread 是用于处理的资源管理逻辑,例如数据流.<a href="https://webrtc.org/native-code/native-apis/" target="_blank" rel="external">WebRTC Doc</a> </strong></p>
+<p><strong>PeerConnectionFactory Interface</strong> </p>
+<pre><code>+CreatePeerConnection()
+创建PeerConnection实例
+</code></pre><hr>
+<pre><code>+CreateLocalMediaStream()
+创建MediaStream用来对本地视频流Capture
+</code></pre><hr>
+<pre><code>+CreateAudioSource()
+获取音频源
++CreateAudioTrack()
+将AudioSource封装成MediaStream
+</code></pre><hr>
+<pre><code>+CreateVideoSource()
+获取音频源
++CreateVideoTrack()
+将VideoSource封装成MediaStream
+</code></pre><p><strong>PeerConnectionInterface</strong></p>
+<pre><code>+AddStream()
+(已废弃)调用addTrack()添加视频Track作为一个本地视频源
+</code></pre><hr>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createOffer" target="_blank" rel="external">CreateOffer()</a></p>
+<pre><code>+CreateOffer()
+初始化创建一个已被附加到WebRTC会话,编码解码器,或者浏览器支持的附加组件的包含描述MediaStreamTracks的SDP offer以及被ICE代理收集candidates,为了能够通过信令服务器请求连接或者更新已存在连接的设置.
+当offer对象以及被创建了的话,会通过创建一个包含新offer的RTCSeesionDescription对象.
+</code></pre><hr>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/createAnswer" target="_blank" rel="external">CreateAnswer()</a></p>
+<pre><code>+CreateAnswer()
+创建一个answer对象在webrtc建立握手连接的过程中提供远程通讯.当answer被创建之后他应该被发送到offer发送方以继续握手建立连接的过程.
+</code></pre><hr>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/setLocalDescription" target="_blank" rel="external">SetRemoteDescription()</a></p>
+<pre><code>+setLocalDescription()
+协助改变connection本地描述.描述指定了connection在结束时候的属性,包括media的格式,实际连接都会被这个所改变,所以必须能够支持各种版本的描述作为替代.这个方法使用一个参数(session描述)返回一个promise(es6后支持的异步嵌套回调.)
+</code></pre><hr>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/setRemoteDescription" target="_blank" rel="external">SetRemoteDescription()</a></p>
+<pre><code>+SetRemoteDescription()
+改变远端服务器的connetion描述,这个描述指定了远端连接的属性,包括media格式,实际连接会受到这个属性的影响,所以必须能够支持各种版本的描述作为替代.这个方法使用一个参数(session描述)返回一个promise(es6后支持的异步嵌套回调.)
+这个函数通常会在从信令接收到offer或者answer后调用.
+</code></pre><hr>
+<p><a href="https://developer.mozilla.org/en-US/docs/Web/API/RTCPeerConnection/addIceCandidate" target="_blank" rel="external">AddICECandidates</a></p>
+<pre><code>+AddICECandidates()
+当一个网站或者App使用RTCPeerConnection在singaling server接收到一个新的ICE candidate的时候,通过调用这个函数实现送达这个新的candidate到浏览器或者App的ICE代理.
+</code></pre><p><strong>PeerConnectionInterface</strong></p>
+<pre><code>+OnAddStream()
+当媒体流被添加到Local的时候的回调.
+
++OnIceCandidate()
+当Ice 接受到Candidate的时候的回调.
+</code></pre>
+    </section>
+    <footer class="post-footer">
+      <section class="author">
+    <h4>John Doe</h4>
+    <p>A designer, developer and entrepreneur. Spends his time travelling the world with a bag of kites. Likes journalism and publishing platforms.</p>
+</section>
+      <section class="share">
+    <h4>Share this post</h4>
+    <a class="icon-twitter" href="http://twitter.com/share?url=http://yoursite.com/2016/09/04/WebRTC-建立过程/"
+       onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+        <span class="hidden">Twitter</span>
+    </a>
+    <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http://yoursite.com/2016/09/04/WebRTC-建立过程/"
+       onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+        <span class="hidden">Facebook</span>
+    </a>
+    <a class="icon-google-plus" href="https://plus.google.com/share?url=http://yoursite.com/2016/09/04/WebRTC-建立过程/"
+       onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+        <span class="hidden">Google+</span>
+    </a>
+</section>
+    </footer>
+  </article>
+  <nav class="pagination" role="pagination">
+    
+    <span class="page-number">•</span>
+    
+    <a class="older-posts" href="/2016/08/27/WebRTC建立过程/">
+         →
+    </a>
+    
+</nav>
+  <div id="comment" class="comments-area">
+    <h1 class="title"><a href="#disqus_comments" name="disqus_comments">Comments</a></h1>
+
+    
+</div>
+</main>
+
+
+  
+<footer class="site-footer">
+  
+  <div class="inner">
+     <section class="copyright">All content copyright <a href="/">Hexo</a> &copy; 2014 &bull; All rights reserved.</section>
+     <section class="poweredby">Proudly published with <a class="icon-ghost" href="http://zespia.tw/hexo/">Hexo</a></section>
+  </div>
+</footer>
+
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+<script type="text/javascript" src="/js/jquery.fitvids.js"></script>
+<script type="text/javascript" src="/js/index.js"></script>
+
+
+
+
+
+
+</body>
+</html>
