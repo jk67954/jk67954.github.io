@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html" charset="UTF-8" >
+  <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1"/>
+  <title>MachO文件注入DYLIB的过程分析 | jk67954</title>
+  <meta name="description" content="" />
+  <meta name="HandheldFriendly" content="True" />
+  <meta name="MobileOptimized" content="320" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <link rel="stylesheet" type="text/css" href="/css/screen.css" />
+  <link rel="stylesheet" type="text/css" href="//fonts.googleapis.com/css?family=Noto+Serif:400,700,400italic|Open+Sans:700,400" />
+
+  <meta name="generator" content="jk67954">
+
+  
+  
+  
+
+  
+</head>
+
+
+<body class="post-template">
+
+  <header class="site-head"  style="background-image: url(//blog.ghost.org/content/images/2013/Nov/cover.png)" >
+    <div class="vertical">
+        <div class="site-head-content inner">
+             <a class="blog-logo" href="/"><img src="//blog.ghost.org/content/images/2013/Nov/bloglogo_1-1.png" alt="Blog Logo"/></a> 
+            <h1 class="blog-title">jk67954</h1>
+            <h2 class="blog-description"></h2>
+        </div>
+    </div>
+</header>
+  
+
+<main class="content" role="main">
+  <article class="post">
+    <span class="post-meta">
+      <time datetime="2016-09-04T13:10:55.000Z" itemprop="datePublished">
+          2016-09-04
+      </time>
+    
+</span>
+    <h1 class="post-title">MachO文件注入DYLIB的过程分析</h1>
+    <section class="post-content">
+      <p>####本文是建立在yololib这个工程的基础上 感谢原作者 Sam Hocevar(sam@hocevar.net)的贡献。</p>
+<p>首先我们要了解一下Mach_O文件的结构。</p>
+<p>火星弟这里用的是010 Editor结合macho的template来分析Mach_O的结构的。当然也可以用MachOView等工具来查看。这里分享下010 Editor macho的template的下载地址:<a href="http://www.sweetscape.com/010editor/templates/files/MachOTemplate.bt" target="_blank" rel="external">http://www.sweetscape.com/010editor/templates/files/MachOTemplate.bt</a></p>
+<p>好了 言归正传 第一步先打开010 Editor并显示Run Script来显示MachO的Header结构：</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2820010-3350da98b74c7a7e.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="image"></p>
+<p><strong>如上图所示我们可以看到MachO文件主要是由Header LoadCommand 两部分构成。</strong></p>
+<p>要了解如果将我们的Dylib注入MachO首先要知道Dylib是在什么时候加载的;我们知道在一个程序运行前,内核会设置用户的入口函数并执行如下__dyld_start-&gt;dyldbootstrap::start()-&gt;_main()[dyld.cpp]…..-&gt;context-&gt;loadLibrary(libarayInfo[i]),从而实现加载Dynamic Library。好了,到此为止,至于怎么具体实现dylib的加载我就不详细说了,我们来看macho中dylib的入口。</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2820010-32a702392158ca48.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="image"></p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2820010-b8fe9392d3f8fbf1.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="image"></p>
+<p><strong>上图所示,我们可以看到这个Macho包含49个LC(Load Commands),49个LC大小是5380字节。我们实现动态注入Dylib的方法就是增加一个LC_LOAD_DYLIB到LC数据段中。</strong></p>
+<p>我们要首先修改Mach Header 的Number of Load Commands以及Size of Load Commands。</p>
+<p>###代码如下:<br>    ………..//Read MachO File</p>
+<pre><code>struct mach_header mach;
+
+//executable+dylib 路径长度
+
+uint32_t dylib_size = (uint32_t)[data length] + sizeof(struct dylib_command);
+
+//字节对齐
+
+dylib_size += sizeof(long) - (dylib_size % sizeof(long));
+
+mach.ncmds += 1;
+
+uint32_t sizeofcmds = mach.sizeofcmds;
+
+mach.sizeofcmds += dylib_size;
+
+接着向新分配的空间写入dylib加载命令
+
+//seek to Last of LC_LOAD_DYLIB
+
+fseek(newFile, sizeofcmds, SEEK_CUR);
+
+struct dylib_command dyld;
+
+//read free space  
+
+fread(&amp;dyld, sizeof(struct dylib_command), 1, newFile);
+
+//configration dyld section property
+
+dyld.cmd = LC_LOAD_DYLIB;
+
+.......
+
+dyld.dylib.name.offset = sizeof(struct dylib_command);
+
+//inject dyld load command
+
+fwrite(&amp;dyld, sizeof(struct dylib_command), 1, newFile);
+</code></pre><p>####注意加载dylib的地址,因为iOS设备未越狱的话就无法将dylib放入沙盒外,通过@executable_path/xxx.dylib路径结构来指定dylib的具体位置。</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/2820010-d447087d3ab52265.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="image"></p>
+
+    </section>
+    <footer class="post-footer">
+      <section class="author">
+    <h4>Xin Li</h4>
+    <p>A designer, developer and entrepreneur. Spends his time travelling the world with a bag of kites. Likes journalism and publishing platforms.</p>
+</section>
+      <section class="share">
+    <h4>Share this post</h4>
+    <a class="icon-twitter" href="http://twitter.com/share?url=http://yoursite.com/2016/09/04/MachO文件注入DYLIB的过程分析/"
+       onclick="window.open(this.href, 'twitter-share', 'width=550,height=235');return false;">
+        <span class="hidden">Twitter</span>
+    </a>
+    <a class="icon-facebook" href="https://www.facebook.com/sharer/sharer.php?u=http://yoursite.com/2016/09/04/MachO文件注入DYLIB的过程分析/"
+       onclick="window.open(this.href, 'facebook-share','width=580,height=296');return false;">
+        <span class="hidden">Facebook</span>
+    </a>
+    <a class="icon-google-plus" href="https://plus.google.com/share?url=http://yoursite.com/2016/09/04/MachO文件注入DYLIB的过程分析/"
+       onclick="window.open(this.href, 'google-plus-share', 'width=490,height=530');return false;">
+        <span class="hidden">Google+</span>
+    </a>
+</section>
+    </footer>
+  </article>
+  <nav class="pagination" role="pagination">
+    
+    <span class="page-number">•</span>
+    
+    <a class="older-posts" href="/2016/09/04/WebRTC-建立过程/">
+        WebRTC 建立过程 →
+    </a>
+    
+</nav>
+  <div id="comment" class="comments-area">
+    <h1 class="title"><a href="#disqus_comments" name="disqus_comments">Comments</a></h1>
+
+    
+</div>
+</main>
+
+
+  
+<footer class="site-footer">
+  
+  <div class="inner">
+     <section class="copyright">All content copyright <a href="/">jk67954</a> &copy; 2014 &bull; All rights reserved.</section>
+     <section class="poweredby">Proudly published with <a class="icon-ghost" href="http://zespia.tw/hexo/">Hexo</a></section>
+  </div>
+</footer>
+
+  <script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
+
+<script type="text/javascript" src="/js/jquery.fitvids.js"></script>
+<script type="text/javascript" src="/js/index.js"></script>
+
+
+
+
+
+
+</body>
+</html>
